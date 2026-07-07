@@ -139,7 +139,7 @@ Five fix commits plus one docs/test commit, all on `bugfix/mixtape`, branched of
 
 ```
 $ git log --oneline bugfix/mixtape
-<test commit>  test: add regression test for Issue #4 (missing rating notification)
+15e354e test: add regression test for Issue #4 (missing rating notification)
 8b55b2b fix: return all songs in playlist instead of dropping the last one
 80f61a8 fix: notify song sharer when a friend rates their song
 164e9af fix: remove unnecessary song_tags join causing duplicate search results
