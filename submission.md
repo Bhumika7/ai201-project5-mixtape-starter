@@ -119,3 +119,33 @@ The moment I was confident this was the exact bug (not just a suspicious area) w
 **The root cause.** `songs[:-1]` is a Python slice that excludes the last element of a list. Applied to the correctly-ordered list of songs in a playlist, it unconditionally drops whichever song is last by position — i.e., the most recently added song in most cases — from every playlist, regardless of playlist size (an off-by-one slicing bug, not a query bug).
 
 **My fix and side-effect check.** I changed the return line to `[song.to_dict() for song in songs]`, removing the slice. I checked the two edge cases most likely to reveal a partial fix: an empty playlist (`songs = []`) still returns `[]` with no error, matching `test_empty_playlist_returns_empty_list`; and a single-song playlist, which the old code would have reduced to an empty list (`[x][:-1] == []`), now correctly returns that one song. I also confirmed the ordering assertion in `test_playlist_returns_songs_in_order` is unaffected, since removing a slice from the end doesn't change the order of the remaining elements.
+
+---
+
+## Regression Test (stretch)
+
+I added `tests/test_notifications.py`, since the starter repo had no existing test file for `notification_service.py` (unlike streaks, search, and playlists, which already had test files whose assertions doubled as pre-written regression tests for Issues #1, #3, and #5). It contains:
+
+- `test_rating_a_friends_song_notifies_the_sharer` — asserts exactly one `song_rated` notification is created for the sharer after `rate_song()` runs. Against the pre-fix code this assertion fails (`len(notifications) == 0`); against the fix it passes.
+- `test_rating_your_own_song_does_not_self_notify` — asserts rating your own song creates zero notifications, so the fix doesn't over-notify.
+
+It follows the same `pytest` fixture pattern (`create_app({"TESTING": True, ...})` + in-memory SQLite) as the other three test files, so it will run the same way once Flask/SQLAlchemy are installed: `pytest tests/test_notifications.py`. I validated the equivalent behavior in this sandbox via the fake-ORM harness described in the Issue #4 RCA entry above, since pytest itself couldn't run here (see Environment Note).
+
+---
+
+## Commit History
+
+Five fix commits plus one docs/test commit, all on `bugfix/mixtape`, branched off the initial import commit (which lives on `main`):
+
+```
+$ git log --oneline bugfix/mixtape
+<test commit>  test: add regression test for Issue #4 (missing rating notification)
+8b55b2b fix: return all songs in playlist instead of dropping the last one
+80f61a8 fix: notify song sharer when a friend rates their song
+164e9af fix: remove unnecessary song_tags join causing duplicate search results
+dca2b92 fix: shrink Friends Listening Now recency window from 24h to 30min
+a55fc39 fix: remove incorrect Sunday exclusion from streak increment logic
+85ac81c chore: import starter repo (Mixtape Bug Hunt project 5)
+```
+
+All 5 of the 5 open issues were fixed (3 required + 2 stretch), each as its own commit with a `fix:`-prefixed conventional commit message, plus one additional `test:` commit for the stretch regression test.
