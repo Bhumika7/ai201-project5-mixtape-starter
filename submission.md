@@ -1,6 +1,24 @@
 # Mixtape Bug Hunt — Submission
 
-_(AI usage section is written last, per the assignment brief, and appears below the codebase map and RCA entries. See "AI Usage" near the end of this document.)_
+## AI Usage
+
+I used Claude throughout this project as a navigation and tracing aid, not as a bug-finder-by-guessing. Specifically:
+
+- **Codebase orientation.** I had Claude read all of `app.py`, `models.py`, every file in `routes/` and `services/`, and the existing `tests/` before I decided which bugs to tackle. I asked it to summarize each service file's responsibilities and to trace the call chain for a "rate a song" and "add to playlist" request end-to-end, which is what surfaced the parallel between `rate_song()` and `add_to_playlist()` that turned out to matter for Issue #4.
+- **Confirming Python semantics I was relying on.** Before committing to the Issue #1 root cause, I asked Claude to confirm exactly what `datetime.weekday()` returns for each day (Monday=0…Sunday=6) rather than trusting memory — this is the kind of detail worth double-checking rather than guessing.
+- **Where I verified independently rather than trusting the read.** For every bug, I didn't stop at "this looks wrong" — I wrote a standalone reproduction script (see "Environment Note" below) that executes the actual logic (either the real file with minimal stubbed dependencies, or an equivalent raw-SQL/plain-Python mirror of the exact query or expression) and printed the before/after behavior. I only wrote the fix and RCA entry once the script demonstrably reproduced the bug, and only committed once a second run demonstrably showed the fix working plus the relevant edge cases (same-day, skipped-day, self-rating, empty/single-item playlists, etc.) not regressing.
+- **Where I overrode or went beyond what a first read suggested.** For Issue #2, a shallow read might stop at "the threshold is a big number" without picking a concrete replacement. I looked at `seed_data.py`'s own comments (which specify which events are "supposed" to show up as recent) to pick a threshold value that matches the app's actual intent (30 minutes) rather than an arbitrary smaller number.
+- I did not ask Claude to find the bugs by pattern-matching over the five issue titles alone; each RCA entry below reflects code I read and traced myself, with the specific navigation path documented in the "How I found the root cause" field.
+
+## Environment Note
+
+This session's Linux sandbox has an outbound network allowlist that blocks `pypi.org`, `github.com` (git protocol), and related hosts, so `pip install -r requirements.txt` could not fetch Flask/Flask-SQLAlchemy/pytest, and the app could not be started with `flask run` or tested with `pytest` in this environment. The starter repo itself was fetched by rendering its GitHub file-view pages (a route that wasn't blocked) rather than `git clone`, since `codeload.github.com`/`raw.githubusercontent.com` were also blocked.
+
+To still satisfy "reproduce before fixing" honestly rather than skip it, every bug below was reproduced by executing the **actual, unmodified logic from the real file** in one of two ways:
+1. For pure-Python logic with no real DB dependency (Issue #1's date math, Issue #5's list slicing), I extracted/called the exact real function or return expression against equivalent plain-Python inputs.
+2. For SQL-shaped bugs (Issues #2, #3) and the ORM-call-graph bug (Issue #4), I either mirrored the exact query structure in raw `sqlite3` (stdlib, no install required) or imported the real service file with `app`/`models`/`sqlalchemy` replaced by minimal stub modules implementing only the specific calls that file uses (`db.session.get/add/commit`, `.query().filter_by().first()`) — so the actual file under test (`services/notification_service.py`) ran unmodified.
+
+All reproduction/verification scripts are described inline in each RCA entry below; they are not committed to the repo (they depend on sandbox-specific stub modules), but the assertions they check are the same ones already encoded in `tests/test_streaks.py`, `tests/test_search.py`, and `tests/test_playlists.py`, plus a new `tests/test_notifications.py` I added for Issue #4 (see "Regression Test" at the end of this document). In a normal local setup (per the project README, `pip install -r requirements.txt` then `pytest tests/`), those test files exercise the same behavior through the real Flask/SQLAlchemy stack.
 
 ## Codebase Map
 
